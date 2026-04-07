@@ -11,9 +11,10 @@ app = FastAPI(
 
 app.include_router(convert.router)
 
+
 """@app.get("/")
 def root():
     return {
         "message": "Добро пожаловать! Используйте POST /convert/",
-        "example": "curl -F 'file=@data.csv' -F 'target_format=xml' http://localhost:8000/convert/"
+        "example": "curl -F 'file=@data.csv' -F 'target_format=xml' http://localhost:8000/convert/",
     }"""
