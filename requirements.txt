@@ -4,3 +4,4 @@ python-multipart==0.0.20
 pandas==2.2.3
 dicttoxml==1.7.16
 xmltodict==0.13.0
+jinja2

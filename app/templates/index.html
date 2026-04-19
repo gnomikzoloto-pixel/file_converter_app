@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Конвертер файлов</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📁 Конвертер файлов</h1>
+            <p>Конвертируй CSV, JSON и XML за секунду</p>
+        </header>
+
+        <main>
+            <div class="card">
+                <h2>1. Выберите файл</h2>
+                <div class="file-input-area" id="fileDropZone">
+                    <input type="file" id="fileInput" accept=".csv,.json,.xml">
+                    <label for="fileInput" class="file-label">
+                        📂 Нажмите или перетащите файл сюда
+                    </label>
+                    <div id="fileInfo" class="file-info"></div>
+                    <button id="clearFileBtn" class="clear-btn" style="display: none;">🗑️ Очистить</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>2. Выберите целевой формат</h2>
+                <div class="format-selector">
+                    <select id="targetFormat" class="format-select">
+                        <option value="json">JSON</option>
+                        <option value="csv">CSV</option>
+                        <option value="xml">XML</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>3. Конвертировать</h2>
+                <button id="convertBtn" class="convert-btn" disabled>
+                    🔄 Конвертировать
+                </button>
+            </div>
+
+            <div class="card result-card" id="resultCard" style="display: none;">
+                <h2>4. Результат</h2>
+                <div class="result-actions">
+                    <button id="downloadBtn" class="download-btn">📥 Скачать файл</button>
+                </div>
+                <div class="result-preview">
+                    <h3>Предпросмотр:</h3>
+                    <pre id="resultPreview" class="result-pre"></pre>
+                </div>
+            </div>
+
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+            <div id="loading" class="loading" style="display: none;">⏳ Конвертация... Подождите</div>
+        </main>
+
+        <footer>
+            <p>Поддерживаемые форматы: CSV, JSON, XML</p>
+        </footer>
+    </div>
+
+    <script>
+        // DOM элементы
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const targetFormat = document.getElementById('targetFormat');
+        const convertBtn = document.getElementById('convertBtn');
+        const resultCard = document.getElementById('resultCard');
+        const resultPreview = document.getElementById('resultPreview');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const errorMessage = document.getElementById('errorMessage');
+        const loading = document.getElementById('loading');
+        const dropZone = document.getElementById('fileDropZone');
+        const clearFileBtn = document.getElementById('clearFileBtn');
+
+        // Переменные состояния
+        let selectedFile = null;
+        let convertedBlob = null;
+        let convertedFilename = null;
+
+        // Функция очистки выбранного файла
+        function clearFile() {
+            selectedFile = null;
+            fileInput.value = '';
+            fileInfo.innerHTML = '';
+            convertBtn.disabled = true;
+            resultCard.style.display = 'none';
+            clearFileBtn.style.display = 'none';
+            hideError();
+            convertedBlob = null;
+            convertedFilename = null;
+        }
+
+        // Функция отображения ошибки
+        function showError(msg) {
+            errorMessage.textContent = msg;
+            errorMessage.style.display = 'block';
+            setTimeout(() => {
+                errorMessage.style.display = 'none';
+            }, 5000);
+        }
+
+        // Функция скрытия ошибки
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+
+        // Обработка выбранного файла
+        function handleFile(file) {
+            if (!file) {
+                clearFile();
+                return;
+            }
+            
+            const validExtensions = ['.csv', '.json', '.xml'];
+            const ext = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!validExtensions.includes(ext)) {
+                showError('Неподдерживаемый формат файла. Используйте CSV, JSON или XML.');
+                selectedFile = null;
+                convertBtn.disabled = true;
+                fileInfo.innerHTML = '';
+                clearFileBtn.style.display = 'none';
+                return;
+            }
+            
+            selectedFile = file;
+            convertBtn.disabled = false;
+            fileInfo.innerHTML = `✅ Выбран файл: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+            clearFileBtn.style.display = 'inline-block';
+            hideError();
+            resultCard.style.display = 'none';
+        }
+
+        // Выбор файла через input
+        fileInput.addEventListener('change', (e) => {
+            handleFile(e.target.files[0]);
+        });
+
+        // Drag & Drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            handleFile(file);
+            fileInput.files = e.dataTransfer.files;
+        });
+
+        // Кнопка очистки
+        clearFileBtn.addEventListener('click', clearFile);
+
+        // Конвертация
+        convertBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            
+            convertBtn.disabled = true;
+            loading.style.display = 'block';
+            hideError();
+            resultCard.style.display = 'none';
+            
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            
+            try {
+                const response = await fetch(`/convert/?target_format=${targetFormat.value}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error || 'Ошибка конвертации');
+                }
+                
+                // Получаем результат
+                convertedBlob = await response.blob();
+                const text = await convertedBlob.text();
+                
+                // Определяем тип для предпросмотра
+                const ext = targetFormat.value;
+                let previewText = text;
+                if (ext === 'json') {
+                    try {
+                        const parsed = JSON.parse(text);
+                        previewText = JSON.stringify(parsed, null, 2);
+                    } catch(e) {}
+                }
+                
+                resultPreview.textContent = previewText;
+                convertedFilename = `converted.${targetFormat.value}`;
+                resultCard.style.display = 'block';
+                
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                convertBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+        
+        // Скачивание файла
+        downloadBtn.addEventListener('click', () => {
+            if (convertedBlob && convertedFilename) {
+                const url = URL.createObjectURL(convertedBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = convertedFilename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        });
+    </script>
+</body>
+</html>
